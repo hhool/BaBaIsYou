@@ -58,6 +58,12 @@
   let game: GameCore
   const audio = document.createElement('audio')
 
+  let uninstallSwipeControls: null | (() => void) = null
+  onBeforeUnmount(() => {
+    uninstallSwipeControls?.()
+    uninstallSwipeControls = null
+  })
+
   const gamePause = () => {
     game.pause()
   }
@@ -107,25 +113,14 @@
     if (!el) return () => {}
 
     let activePointerId: number | null = null
+    let activeTouchId: number | null = null
     let startX = 0
     let startY = 0
     let startTime = 0
 
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
-      if (showMenu.value) return
-      activePointerId = event.pointerId
-      startX = event.clientX
-      startY = event.clientY
-      startTime = Date.now()
-    }
-
-    const onPointerUp = (event: PointerEvent) => {
-      if (activePointerId === null || event.pointerId !== activePointerId) return
-      activePointerId = null
-
-      const dx = event.clientX - startX
-      const dy = event.clientY - startY
+    const computeAndTrigger = (endX: number, endY: number) => {
+      const dx = endX - startX
+      const dy = endY - startY
       const dt = Date.now() - startTime
 
       const absDx = Math.abs(dx)
@@ -143,9 +138,60 @@
       }
     }
 
+    const onPointerDown = (event: PointerEvent) => {
+      if (showMenu.value) return
+      activePointerId = event.pointerId
+      startX = event.clientX
+      startY = event.clientY
+      startTime = Date.now()
+      try {
+        el.setPointerCapture(event.pointerId)
+      } catch {
+        // ignore
+      }
+    }
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (activePointerId === null || event.pointerId !== activePointerId) return
+      activePointerId = null
+      computeAndTrigger(event.clientX, event.clientY)
+    }
+
     const onPointerCancel = (event: PointerEvent) => {
       if (activePointerId === null || event.pointerId !== activePointerId) return
       activePointerId = null
+    }
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (showMenu.value) return
+      if (event.changedTouches.length <= 0) return
+      const t = event.changedTouches[0]
+      activeTouchId = t.identifier
+      startX = t.clientX
+      startY = t.clientY
+      startTime = Date.now()
+      event.preventDefault()
+    }
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (activeTouchId === null) return
+      for (const t of Array.from(event.changedTouches)) {
+        if (t.identifier !== activeTouchId) continue
+        activeTouchId = null
+        computeAndTrigger(t.clientX, t.clientY)
+        event.preventDefault()
+        return
+      }
+    }
+
+    const onTouchCancel = (event: TouchEvent) => {
+      if (activeTouchId === null) return
+      for (const t of Array.from(event.changedTouches)) {
+        if (t.identifier !== activeTouchId) continue
+        activeTouchId = null
+        event.preventDefault()
+        return
+      }
     }
 
     el.addEventListener('pointerdown', onPointerDown)
@@ -153,11 +199,20 @@
     el.addEventListener('pointercancel', onPointerCancel)
     el.addEventListener('pointerleave', onPointerCancel)
 
+    // Android WebView compatibility: some builds still deliver TouchEvent but not PointerEvent reliably.
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: false })
+    el.addEventListener('touchcancel', onTouchCancel, { passive: false })
+
     return () => {
       el.removeEventListener('pointerdown', onPointerDown)
       el.removeEventListener('pointerup', onPointerUp)
       el.removeEventListener('pointercancel', onPointerCancel)
       el.removeEventListener('pointerleave', onPointerCancel)
+
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchCancel)
     }
   }
 
@@ -222,8 +277,7 @@
   tryOnMounted(async () => {
     game = await (async () => (await import('@/core')).default)()
     prepareGame()
-    const uninstallSwipe = installSwipeControls()
-    onBeforeUnmount(uninstallSwipe)
+    uninstallSwipeControls = installSwipeControls()
     await startNewGame()
   })
 </script>
