@@ -2,8 +2,7 @@ import {
   defineConfig,
   presetAttributify,
   presetIcons,
-  presetUno,
-  presetWebFonts
+  presetUno
   // transformerDirectives,
   // transformerVariantGroup,
 } from 'unocss'
@@ -19,13 +18,6 @@ export default defineConfig({
     presetIcons({
       scale: 1.2,
       warn: true
-    }),
-    presetWebFonts({
-      fonts: {
-        sans: 'Russo One',
-        serif: 'Russo One',
-        mono: 'Russo One'
-      }
     })
   ]
   // transformers: [

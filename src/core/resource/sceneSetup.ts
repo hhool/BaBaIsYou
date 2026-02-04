@@ -17,7 +17,8 @@ export interface SceneSetupJson {
   readonly thingsMap: Array<ThingsMapJson>
 }
 
-axios.defaults.baseURL = '/sceneSetups/'
+const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
+axios.defaults.baseURL = baseUrl + 'sceneSetups/'
 
 const convertToSceneSetup = (sceneSetupJson: SceneSetupJson): SceneSetup => {
   const sceneWidth = sceneSetupJson.sceneWidth
