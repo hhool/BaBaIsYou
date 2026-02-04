@@ -58,6 +58,18 @@
   let game: GameCore
   const audio = document.createElement('audio')
 
+  let audioSrcCandidates: Array<string> = []
+  let audioSrcCandidateIndex = 0
+
+  audio.addEventListener('error', () => {
+    if (audioSrcCandidates.length <= 0) return
+    if (audioSrcCandidateIndex >= audioSrcCandidates.length - 1) return
+    audioSrcCandidateIndex += 1
+    audio.src = audioSrcCandidates[audioSrcCandidateIndex]
+    // Best-effort retry; play() can be blocked by autoplay policies.
+    void audio.play().catch(() => {})
+  })
+
   let uninstallSwipeControls: null | (() => void) = null
   onBeforeUnmount(() => {
     uninstallSwipeControls?.()
@@ -98,7 +110,15 @@
 
   const setAudioSrc = (filename?: string) => {
     const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
-    audio.src = baseUrl + 'music/' + (filename ?? '')
+    const rel = 'music/' + (filename ?? '')
+    const normalizedRel = rel.replace(/^\//, '')
+    audioSrcCandidates = [
+      baseUrl + normalizedRel,
+      '/' + normalizedRel,
+      '../' + normalizedRel
+    ].filter((v, idx, arr) => Boolean(v) && arr.indexOf(v) === idx)
+    audioSrcCandidateIndex = 0
+    audio.src = audioSrcCandidates[0] ?? ''
     audio.loop = true
   }
 

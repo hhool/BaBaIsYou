@@ -18,7 +18,11 @@ export interface SceneSetupJson {
 }
 
 const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
-axios.defaults.baseURL = baseUrl + 'sceneSetups/'
+const normalizePath = (p: string) => p.replace(/^\/+/, '')
+const buildSceneSetupUrl = (base: string, filePath: string) => {
+  const cleanBase = base.replace(/\/?$/, '/')
+  return cleanBase + 'sceneSetups/' + normalizePath(filePath)
+}
 
 const convertToSceneSetup = (sceneSetupJson: SceneSetupJson): SceneSetup => {
   const sceneWidth = sceneSetupJson.sceneWidth
@@ -52,12 +56,23 @@ const convertToSceneSetup = (sceneSetupJson: SceneSetupJson): SceneSetup => {
 }
 
 const loadSceneSetupJson = async (filePath: string): Promise<SceneSetupJson> => {
-  try {
-    const { data } = await axios.get(filePath)
-    return data
-  } catch (e) {
-    throw new Error('Error occurred while loading JSON from local' + e)
+  const candidates = [
+    buildSceneSetupUrl(baseUrl, filePath),
+    buildSceneSetupUrl('/', filePath),
+    buildSceneSetupUrl('../', filePath)
+  ]
+
+  let lastError: unknown
+  for (const url of candidates) {
+    try {
+      const { data } = await axios.get(url)
+      return data
+    } catch (e) {
+      lastError = e
+    }
   }
+
+  throw new Error(`Error occurred while loading SceneSetup JSON. Tried: ${candidates.join(', ')}. Error: ${String(lastError)}`)
 }
 
 export const getSceneSetup = async (filePath: string): Promise<SceneSetup> => {
