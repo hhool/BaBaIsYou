@@ -37,12 +37,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
+        run: pnpm build
+
+      - name: Verify static assets copied
         run: |
-          if [ -f CNAME ]; then
-            pnpm build -- --base=/
-          else
-            pnpm build -- --base=/${{ github.event.repository.name }}/
-          fi
+          test -d dist/things
+          test -d dist/music
+          test -d dist/sceneSetups
+          echo "dist/things:" && ls -la dist/things | head -n 50
+          echo "dist/music:" && ls -la dist/music | head -n 50
+          echo "dist/sceneSetups:" && ls -la dist/sceneSetups | head -n 50
 
       - name: Prepare Pages output
         run: |
