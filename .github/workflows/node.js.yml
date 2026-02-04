@@ -37,12 +37,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm build -- --base=/${{ github.event.repository.name }}/
+        run: |
+          if [ -f CNAME ]; then
+            pnpm build -- --base=/
+          else
+            pnpm build -- --base=/${{ github.event.repository.name }}/
+          fi
 
       - name: Prepare Pages output
         run: |
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
+          if [ -f CNAME ]; then cp CNAME dist/CNAME; fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
