@@ -28,4 +28,7 @@ export const MAX_COMMAND_AMOUNT = 8
 export const COMMAND_MIN_INTERVAL = 100
 export const THING_MOVE_DURATION = 80
 
-export const RESOURCE_LOCATION = '/things/game_sprites.json'
+const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
+const withBase = (p: string) => baseUrl + p.replace(/^\//, '')
+
+export const RESOURCE_LOCATION = withBase('things/game_sprites.json')

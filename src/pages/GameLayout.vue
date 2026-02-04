@@ -89,8 +89,8 @@
   }
 
   const setAudioSrc = (filename?: string) => {
-    const pathPrefix = '/music/'
-    audio.src = pathPrefix + (filename ?? '')
+    const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
+    audio.src = baseUrl + 'music/' + (filename ?? '')
     audio.loop = true
   }
 

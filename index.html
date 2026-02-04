@@ -7,7 +7,9 @@
   <meta http-equiv='Content-Language' lang='zh-hant-tw' />
   <meta content='width=device-width,initial-scale=1.0,maximum-scale=5.0,minimum-scale=1.0' name='viewport'>
   <meta content='strict-origin-when-cross-origin' name='referrer'>
-  <link href='/favicon.ico?v=2' rel='icon'>
+  <link href='%BASE_URL%favicon.ico?v=2' rel='icon'>
+  <!-- Must run before Vite entry: VS Code HTML Preview may inject a cross-origin <base href="https://file+.vscode-resource..."> -->
+  <script src='%BASE_URL%webview-fix.js'></script>
   <title>BaBaIsYou</title>
 </head>
 <body>
@@ -18,6 +20,9 @@
   </strong>
 </noscript>
 <div id='app'></div>
+
+<script src='%BASE_URL%boot-diag.js'></script>
+
 <script src='/src/main.ts' type='module'></script>
 </body>
 </html>
