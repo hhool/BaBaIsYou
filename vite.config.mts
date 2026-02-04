@@ -5,7 +5,7 @@ import Unocss from 'unocss/vite'
 import { join } from 'path'
 
 export default defineConfig({
-  base: './',
+  base: '/',
   resolve: {
     alias: {
       '@': `${join(__dirname, 'src')}`
