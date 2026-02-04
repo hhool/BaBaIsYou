@@ -9,6 +9,7 @@
   <NoYouAlertBar v-if='showNoYouAlertBar' :key='"alertBar"+alertBarKey' />
   <div
     id='game-layer'
+    ref='gestureLayer'
     class='
        transform-gpu
         flex
@@ -26,7 +27,7 @@
 </template>
 
 <script lang='ts' setup>
-  import { defineAsyncComponent, ref } from 'vue'
+  import { defineAsyncComponent, onBeforeUnmount, ref } from 'vue'
   import { tryOnMounted } from '@vueuse/core'
   import type { GameCore } from '@/core/types'
   import { GameResult } from '@/core/types'
@@ -40,6 +41,7 @@
   const globalState = useGlobalState()
   const router = useRouter()
 
+  const gestureLayer = ref<HTMLElement>({} as HTMLElement)
   const gameLayer = ref<HTMLElement>({} as HTMLElement)
 
   const showMenu = ref(false)
@@ -92,6 +94,71 @@
     const baseUrl = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
     audio.src = baseUrl + 'music/' + (filename ?? '')
     audio.loop = true
+  }
+
+  type MoveCommand = 'up' | 'down' | 'left' | 'right'
+  const triggerMove = (command: MoveCommand) => {
+    if (showMenu.value) return
+    mousetrap.trigger(command)
+  }
+
+  const installSwipeControls = () => {
+    const el = gestureLayer.value
+    if (!el) return () => {}
+
+    let activePointerId: number | null = null
+    let startX = 0
+    let startY = 0
+    let startTime = 0
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
+      if (showMenu.value) return
+      activePointerId = event.pointerId
+      startX = event.clientX
+      startY = event.clientY
+      startTime = Date.now()
+    }
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (activePointerId === null || event.pointerId !== activePointerId) return
+      activePointerId = null
+
+      const dx = event.clientX - startX
+      const dy = event.clientY - startY
+      const dt = Date.now() - startTime
+
+      const absDx = Math.abs(dx)
+      const absDy = Math.abs(dy)
+      const minDistance = Math.max(24, Math.min(window.innerWidth, window.innerHeight) * 0.06)
+      const maxDuration = 700
+
+      if (dt > maxDuration) return
+      if (Math.max(absDx, absDy) < minDistance) return
+
+      if (absDx > absDy) {
+        triggerMove(dx > 0 ? 'right' : 'left')
+      } else {
+        triggerMove(dy > 0 ? 'down' : 'up')
+      }
+    }
+
+    const onPointerCancel = (event: PointerEvent) => {
+      if (activePointerId === null || event.pointerId !== activePointerId) return
+      activePointerId = null
+    }
+
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointerup', onPointerUp)
+    el.addEventListener('pointercancel', onPointerCancel)
+    el.addEventListener('pointerleave', onPointerCancel)
+
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('pointerup', onPointerUp)
+      el.removeEventListener('pointercancel', onPointerCancel)
+      el.removeEventListener('pointerleave', onPointerCancel)
+    }
   }
 
   const startNewGame = async () => {
@@ -155,6 +222,8 @@
   tryOnMounted(async () => {
     game = await (async () => (await import('@/core')).default)()
     prepareGame()
+    const uninstallSwipe = installSwipeControls()
+    onBeforeUnmount(uninstallSwipe)
     await startNewGame()
   })
 </script>
@@ -164,5 +233,9 @@
     max-height: min-content;
     min-height: max-content;
     height: min-content;
+  }
+
+  #game-layer {
+    touch-action: none;
   }
 </style>
