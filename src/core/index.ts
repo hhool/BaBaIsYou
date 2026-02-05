@@ -28,7 +28,7 @@ const gameInit = async () => {
 const gameCore = async (): Promise<GameCore> => {
   await gameInit()
   return {
-    gameView: app.canvas,
+    gameView: app.canvas as unknown as HTMLCanvasElement,
     startLevel,
     pause,
     resume,

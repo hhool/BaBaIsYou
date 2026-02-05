@@ -6,7 +6,11 @@
     @to-menu='toMenu'
     @to-home='toHome'
   />
-  <NoYouAlertBar v-if='showNoYouAlertBar' :key='"alertBar"+alertBarKey' />
+  <NoYouAlertBar
+    v-if='showNoYouAlertBar'
+    :key='"alertBar"+alertBarKey'
+    @restart='handleNoYouAlertRestart'
+  />
   <div
     id='game-layer'
     ref='gestureLayer'
@@ -17,6 +21,26 @@
         justify-center
         relative
         bg-gray-900'>
+    <div v-if='showMobileOverlayKeys' class='absolute inset-x-0 top-0 z-10 pointer-events-none'>
+      <button
+        class='pointer-events-auto absolute left-3 h-10 min-w-10 px-3 rounded-lg bg-gray-800/70 text-white text-sm font-semibold select-none'
+        style='top: calc(env(safe-area-inset-top) + 0.75rem)'
+        type='button'
+        @click.stop.prevent='onOverlayEsc'
+        @pointerdown.stop.prevent='onOverlayEsc'
+        @touchstart.stop.prevent='onOverlayEsc'>
+        ESC
+      </button>
+      <button
+        class='pointer-events-auto absolute right-3 h-10 min-w-10 px-3 rounded-lg bg-gray-800/70 text-white text-sm font-semibold select-none'
+        style='top: calc(env(safe-area-inset-top) + 0.75rem)'
+        type='button'
+        @click.stop.prevent='onOverlayRestart'
+        @pointerdown.stop.prevent='onOverlayRestart'
+        @touchstart.stop.prevent='onOverlayRestart'>
+        R
+      </button>
+    </div>
     <div
       ref='gameLayer'
       class='
@@ -46,6 +70,15 @@
 
   const showMenu = ref(false)
   const showNoYouAlertBar = ref(false)
+
+  const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent ?? '') : ''
+  const isAndroidPhone = /Android/i.test(userAgent) && /Mobile/i.test(userAgent)
+  const isIOSPhone = /iPhone|iPod/i.test(userAgent)
+  const maxTouchPoints = typeof navigator !== 'undefined' ? (navigator.maxTouchPoints ?? 0) : 0
+  const isIPad = /iPad/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1)
+  const isIOSDevice = isIOSPhone || isIPad
+  const isIOSWebView = isIOSDevice && /AppleWebKit/i.test(userAgent) && !/Safari/i.test(userAgent)
+  const showMobileOverlayKeys = isAndroidPhone || isIOSDevice || isIOSWebView
 
   const menuKey = ref(0)
   const alertBarKey = ref(0)
@@ -98,14 +131,45 @@
     }
   }
 
+  // iOS (especially WKWebView) can fire pointer/touch/click sequences for a single tap.
+  // Guard to avoid opening/closing menus twice.
+  let lastOverlayActionAt = 0
+  const shouldIgnoreOverlayAction = () => {
+    const now = Date.now()
+    if (now - lastOverlayActionAt < 500) return true
+    lastOverlayActionAt = now
+    return false
+  }
+
+  const onOverlayEsc = () => {
+    if (shouldIgnoreOverlayAction()) return
+    handleEsc()
+  }
+
+  const onOverlayRestart = () => {
+    if (shouldIgnoreOverlayAction()) return
+    openRestartConfirm()
+  }
+
   const handleR = (event: ExtendedKeyboardEvent) => {
     event.preventDefault()
     event.stopImmediatePropagation()
     event.stopPropagation()
+    openRestartConfirm()
+  }
+
+  const openRestartConfirm = () => {
+    // Same flow as pressing R: open restart confirm menu.
     menuType.value = MenuType.RESTART
     menuKey.value++
     gamePause()
     showMenu.value = true
+  }
+
+  const handleNoYouAlertRestart = () => {
+    // Ensure the restart menu is visible immediately (otherwise the alert overlay covers it).
+    showNoYouAlertBar.value = false
+    openRestartConfirm()
   }
 
   const setAudioSrc = (filename?: string) => {
@@ -125,6 +189,7 @@
   type MoveCommand = 'up' | 'down' | 'left' | 'right'
   const triggerMove = (command: MoveCommand) => {
     if (showMenu.value) return
+    if (showNoYouAlertBar.value) return
     mousetrap.trigger(command)
   }
 
@@ -170,7 +235,7 @@
     }
 
     const onPointerDown = (event: PointerEvent) => {
-      if (showMenu.value) return
+      if (showMenu.value || showNoYouAlertBar.value) return
       activePointerId = event.pointerId
       startX = event.clientX
       startY = event.clientY
@@ -196,7 +261,7 @@
     }
 
     const onTouchStart = (event: TouchEvent) => {
-      if (showMenu.value) return
+      if (showMenu.value || showNoYouAlertBar.value) return
       if (shouldIgnoreTouchBecausePointer()) return
       if (event.changedTouches.length <= 0) return
       const t = event.changedTouches[0]
@@ -260,7 +325,15 @@
     mousetrap.bind('esc', handleEsc)
     mousetrap.bind('r', handleR)
     setAudioSrc(globalState.value.currentLevel.backgroundMusic)
-    await audio.play()
+    try {
+      await audio.play()
+    } catch (error) {
+      // Autoplay is often blocked on mobile until a user gesture; don't fail game start.
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('[audio] play blocked or failed; continuing without sound', error)
+      }
+    }
   }
 
   const gameOver = async (result: GameResult) => {
@@ -290,9 +363,7 @@
     game.setGameOverOutsideHandler(gameOver)
     game.setYouGoneOutsideHandler(handleYouGone)
 
-    gameLayer.value.appendChild(
-      game.gameView
-    )
+    gameLayer.value.appendChild(game.gameView as unknown as Node)
   }
 
   const restartGame = () => {
