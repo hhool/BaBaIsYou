@@ -137,6 +137,17 @@
     let startX = 0
     let startY = 0
     let startTime = 0
+    let lastPointerDownAt = 0
+    let lastPointerType: string | null = null
+
+    const shouldIgnoreTouchBecausePointer = () => {
+      // On most modern mobile browsers/WebViews, a touch interaction fires BOTH
+      // PointerEvent (pointerType === 'touch') and TouchEvent. If we listen to
+      // both, a single swipe triggers twice (2 moves). Ignore TouchEvent when
+      // a touch-generated PointerEvent started recently.
+      if (lastPointerType !== 'touch') return false
+      return Date.now() - lastPointerDownAt < 1200
+    }
 
     const computeAndTrigger = (endX: number, endY: number) => {
       const dx = endX - startX
@@ -164,6 +175,8 @@
       startX = event.clientX
       startY = event.clientY
       startTime = Date.now()
+      lastPointerDownAt = startTime
+      lastPointerType = event.pointerType ?? null
       try {
         el.setPointerCapture(event.pointerId)
       } catch {
@@ -184,6 +197,7 @@
 
     const onTouchStart = (event: TouchEvent) => {
       if (showMenu.value) return
+      if (shouldIgnoreTouchBecausePointer()) return
       if (event.changedTouches.length <= 0) return
       const t = event.changedTouches[0]
       activeTouchId = t.identifier
@@ -194,6 +208,7 @@
     }
 
     const onTouchEnd = (event: TouchEvent) => {
+      if (shouldIgnoreTouchBecausePointer()) return
       if (activeTouchId === null) return
       for (const t of Array.from(event.changedTouches)) {
         if (t.identifier !== activeTouchId) continue
@@ -205,6 +220,7 @@
     }
 
     const onTouchCancel = (event: TouchEvent) => {
+      if (shouldIgnoreTouchBecausePointer()) return
       if (activeTouchId === null) return
       for (const t of Array.from(event.changedTouches)) {
         if (t.identifier !== activeTouchId) continue
